@@ -1,56 +1,70 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import Link from "next/link";
 import axios from "axios";
-import { Search, Users, CheckCircle, XCircle, Clock } from "lucide-react";
+import {
+  Search,
+  Users,
+  UserCheck,
+  UserX,
+  Clock3,
+  BarChart3,
+  FileText,
+} from "lucide-react";
 
-import { Card, CardContent } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
-import { Progress } from "@/components/ui/progress";
 import { Input } from "@/components/ui/input";
-
+import { Progress } from "@/components/ui/progress";
+import { Badge } from "@/components/ui/badge";
 import {
   Dialog,
   DialogContent,
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
 
-type Candidate = {
+type CandidateStatus = "pending" | "shortlisted" | "rejected";
+
+interface Candidate {
   id: number;
   filename: string;
   match_score: number;
   matched_skills: string;
   missing_skills: string;
   feedback: string;
-  status: string;
-};
+  status: CandidateStatus;
+  created_at: string;
+}
+
+const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:8000";
 
 export default function DashboardPage() {
   const [candidates, setCandidates] = useState<Candidate[]>([]);
   const [loading, setLoading] = useState(true);
-  const [selectedFeedback, setSelectedFeedback] = useState("");
-  const [search, setSearch] = useState("");
-  const [filter, setFilter] = useState("all");
+  const [selectedFeedback, setSelectedFeedback] = useState<string | null>(null);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [statusFilter, setStatusFilter] = useState("all");
 
   const fetchCandidates = async () => {
     try {
-      const response = await axios.get("http://127.0.0.1:8000/candidates");
-      setCandidates(response.data);
+      setLoading(true);
+      const res = await axios.get(`${API_URL}/candidates`);
+      setCandidates(res.data);
     } catch (error) {
-      console.error(error);
+      console.error("Failed to fetch candidates:", error);
     } finally {
       setLoading(false);
-    }
-  };
-
-  const updateStatus = async (id: number, action: "shortlist" | "reject") => {
-    try {
-      await axios.post(`http://127.0.0.1:8000/candidate/${id}/${action}`);
-      fetchCandidates();
-    } catch (error) {
-      console.error(error);
     }
   };
 
@@ -58,203 +72,294 @@ export default function DashboardPage() {
     fetchCandidates();
   }, []);
 
+  const updateStatus = async (id: number, action: "shortlist" | "reject") => {
+    try {
+      await axios.post(`${API_URL}/candidate/${id}/${action}`);
+      fetchCandidates();
+    } catch (error) {
+      console.error(`Failed to ${action} candidate:`, error);
+    }
+  };
+
   const filteredCandidates = useMemo(() => {
     return candidates.filter((candidate) => {
       const matchesSearch = candidate.filename
         .toLowerCase()
-        .includes(search.toLowerCase());
+        .includes(searchQuery.toLowerCase());
 
-      const matchesFilter =
-        filter === "all" ? true : candidate.status === filter;
+      const matchesStatus =
+        statusFilter === "all" || candidate.status === statusFilter;
 
-      return matchesSearch && matchesFilter;
+      return matchesSearch && matchesStatus;
     });
-  }, [candidates, search, filter]);
+  }, [candidates, searchQuery, statusFilter]);
 
-  const totalCandidates = candidates.length;
-  const shortlisted = candidates.filter(
-    (c) => c.status === "shortlisted"
-  ).length;
-  const rejected = candidates.filter((c) => c.status === "rejected").length;
-  const pending = candidates.filter((c) => c.status === "pending").length;
+  const stats = {
+    total: candidates.length,
+    shortlisted: candidates.filter((c) => c.status === "shortlisted").length,
+    rejected: candidates.filter((c) => c.status === "rejected").length,
+    pending: candidates.filter((c) => c.status === "pending").length,
+    avg:
+      candidates.length > 0
+        ? (
+            candidates.reduce((sum, c) => sum + c.match_score, 0) /
+            candidates.length
+          ).toFixed(1)
+        : "0",
+  };
 
-  if (loading) {
-    return (
-      <div className="min-h-screen bg-black text-white flex items-center justify-center text-xl">
-        Loading dashboard...
-      </div>
-    );
-  }
+  const getStatusBadge = (status: CandidateStatus) => {
+    switch (status) {
+      case "shortlisted":
+        return (
+          <Badge className="bg-green-100 text-green-700 hover:bg-green-100">
+            Shortlisted
+          </Badge>
+        );
+
+      case "rejected":
+        return (
+          <Badge className="bg-red-100 text-red-700 hover:bg-red-100">
+            Rejected
+          </Badge>
+        );
+
+      default:
+        return (
+          <Badge className="bg-amber-100 text-amber-700 hover:bg-amber-100">
+            Pending
+          </Badge>
+        );
+    }
+  };
+
+  const formatDate = (date: string) => {
+    return new Date(date).toLocaleDateString("en-IN", {
+      day: "numeric",
+      month: "short",
+      year: "numeric",
+    });
+  };
+
+  const statCards = [
+    {
+      title: "Total Candidates",
+      value: stats.total,
+      icon: Users,
+      bg: "bg-white",
+      iconColor: "text-blue-600",
+    },
+    {
+      title: "Shortlisted",
+      value: stats.shortlisted,
+      icon: UserCheck,
+      bg: "bg-blue-50",
+      iconColor: "text-blue-600",
+    },
+    {
+      title: "Rejected",
+      value: stats.rejected,
+      icon: UserX,
+      bg: "bg-red-50",
+      iconColor: "text-red-600",
+    },
+    {
+      title: "Pending",
+      value: stats.pending,
+      icon: Clock3,
+      bg: "bg-amber-50",
+      iconColor: "text-amber-600",
+    },
+    {
+      title: "Avg ATS Score",
+      value: `${stats.avg}%`,
+      icon: BarChart3,
+      bg: "bg-slate-100",
+      iconColor: "text-slate-700",
+    },
+  ];
 
   return (
-    <div className="min-h-screen bg-black text-white p-8">
-      <div className="max-w-7xl mx-auto">
-        {/* HEADER */}
-        <div className="mb-10">
-          <h1 className="text-5xl font-bold tracking-tight">
-            Resume Screening Dashboard
+    <div className="min-h-screen bg-slate-50 px-6 py-10">
+      <div className="max-w-7xl mx-auto space-y-8">
+        {/* Header */}
+        <div>
+          <h1 className="text-4xl font-bold tracking-tight text-slate-900">
+            Recruitment Dashboard
           </h1>
-          <p className="text-zinc-400 mt-2">
-            AI-powered recruiter control center
+          <p className="text-slate-500 mt-2">
+            Manage candidates, ATS scores, and hiring decisions.
           </p>
         </div>
 
-        {/* ANALYTICS */}
-        <div className="grid md:grid-cols-4 gap-6 mb-10">
-          <Card className="bg-zinc-900 border-zinc-800">
-            <CardContent className="p-6 flex justify-between items-center">
-              <div>
-                <p className="text-zinc-400">Total Candidates</p>
-                <h2 className="text-3xl font-bold">{totalCandidates}</h2>
-              </div>
-              <Users size={32} />
-            </CardContent>
-          </Card>
-
-          <Card className="bg-zinc-900 border-zinc-800">
-            <CardContent className="p-6 flex justify-between items-center">
-              <div>
-                <p className="text-zinc-400">Shortlisted</p>
-                <h2 className="text-3xl font-bold">{shortlisted}</h2>
-              </div>
-              <CheckCircle size={32} />
-            </CardContent>
-          </Card>
-
-          <Card className="bg-zinc-900 border-zinc-800">
-            <CardContent className="p-6 flex justify-between items-center">
-              <div>
-                <p className="text-zinc-400">Rejected</p>
-                <h2 className="text-3xl font-bold">{rejected}</h2>
-              </div>
-              <XCircle size={32} />
-            </CardContent>
-          </Card>
-
-          <Card className="bg-zinc-900 border-zinc-800">
-            <CardContent className="p-6 flex justify-between items-center">
-              <div>
-                <p className="text-zinc-400">Pending</p>
-                <h2 className="text-3xl font-bold">{pending}</h2>
-              </div>
-              <Clock size={32} />
-            </CardContent>
-          </Card>
-        </div>
-
-        {/* SEARCH + FILTER */}
-        <div className="flex flex-col md:flex-row gap-4 mb-8">
-          <div className="relative flex-1">
-            <Search
-              className="absolute left-3 top-3 text-zinc-400"
-              size={18}
-            />
-            <Input
-              placeholder="Search candidates..."
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              className="pl-10 bg-zinc-900 border-zinc-800"
-            />
-          </div>
-
-          <div className="flex gap-2">
-            {["all", "pending", "shortlisted", "rejected"].map((status) => (
-              <Button
-                key={status}
-                variant={filter === status ? "default" : "outline"}
-                onClick={() => setFilter(status)}
-              >
-                {status}
-              </Button>
-            ))}
-          </div>
-        </div>
-
-        {/* CANDIDATES */}
-        <div className="grid gap-6">
-          {filteredCandidates.map((candidate) => (
+        {/* Stats */}
+        <div className="grid gap-6 md:grid-cols-2 xl:grid-cols-5">
+          {statCards.map((item) => (
             <Card
-              key={candidate.id}
-              className="bg-zinc-900 border-zinc-800"
+              key={item.title}
+              className={`${item.bg} border-slate-200 shadow-sm`}
             >
-              <CardContent className="p-6">
-                <div className="flex flex-col lg:flex-row justify-between gap-6">
-                  <div className="flex-1">
-                    <div className="flex items-center gap-4 mb-4">
-                      <h2 className="text-xl font-semibold">
-                        {candidate.filename}
-                      </h2>
+              <CardHeader className="flex flex-row items-center justify-between pb-2">
+                <CardTitle className="text-sm text-slate-500">
+                  {item.title}
+                </CardTitle>
+                <item.icon className={`h-5 w-5 ${item.iconColor}`} />
+              </CardHeader>
 
-                      <Badge
-                        variant="secondary"
-                        className={
-                          candidate.status === "shortlisted"
-                            ? "bg-green-600"
-                            : candidate.status === "rejected"
-                            ? "bg-red-600"
-                            : "bg-yellow-600"
-                        }
-                      >
-                        {candidate.status}
-                      </Badge>
-                    </div>
-
-                    <div className="mb-4">
-                      <p className="mb-2 text-zinc-300">
-                        ATS Match Score: {candidate.match_score.toFixed(2)}%
-                      </p>
-                      <Progress value={candidate.match_score} />
-                    </div>
-
-                    <p className="text-sm text-zinc-300 mb-2">
-                      <strong>Matched:</strong> {candidate.matched_skills}
-                    </p>
-
-                    <p className="text-sm text-zinc-400">
-                      <strong>Missing:</strong> {candidate.missing_skills}
-                    </p>
-                  </div>
-
-                  <div className="flex flex-col gap-3 lg:w-52">
-                    <Button
-                      onClick={() => setSelectedFeedback(candidate.feedback)}
-                    >
-                      View AI Feedback
-                    </Button>
-
-                    <Button
-                      className="bg-green-600 hover:bg-green-700"
-                      onClick={() =>
-                        updateStatus(candidate.id, "shortlist")
-                      }
-                    >
-                      Shortlist
-                    </Button>
-
-                    <Button
-                      className="bg-red-600 hover:bg-red-700"
-                      onClick={() => updateStatus(candidate.id, "reject")}
-                    >
-                      Reject
-                    </Button>
-                  </div>
+              <CardContent>
+                <div className="text-3xl font-bold text-slate-900">
+                  {item.value}
                 </div>
               </CardContent>
             </Card>
           ))}
         </div>
 
-        {/* MODAL */}
+        {/* Search + Filter */}
+        <div className="flex flex-col md:flex-row gap-4 md:items-center md:justify-between">
+          <div className="relative w-full md:max-w-md">
+            <Search className="absolute left-3 top-3 h-4 w-4 text-slate-400" />
+
+            <Input
+              placeholder="Search candidates..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="pl-10 bg-white border-slate-200 text-slate-900"
+            />
+          </div>
+
+          <Tabs
+            value={statusFilter}
+            onValueChange={setStatusFilter}
+            className="w-full md:w-auto"
+          >
+            <TabsList className="bg-white border border-slate-200">
+              <TabsTrigger value="all">All</TabsTrigger>
+              <TabsTrigger value="pending">Pending</TabsTrigger>
+              <TabsTrigger value="shortlisted">Shortlisted</TabsTrigger>
+              <TabsTrigger value="rejected">Rejected</TabsTrigger>
+            </TabsList>
+          </Tabs>
+        </div>
+
+        {/* Table */}
+        <Card className="bg-white border-slate-200 shadow-sm">
+          <CardHeader>
+            <CardTitle className="text-slate-900">
+              Candidate Pipeline
+            </CardTitle>
+          </CardHeader>
+
+          <CardContent>
+            {loading ? (
+              <div className="py-20 text-center text-slate-500">
+                Loading candidates...
+              </div>
+            ) : filteredCandidates.length === 0 ? (
+              <div className="py-20 text-center text-slate-500">
+                <FileText className="mx-auto mb-4 h-10 w-10 opacity-50" />
+                No candidates found.
+              </div>
+            ) : (
+              <Table>
+                <TableHeader>
+                  <TableRow className="border-slate-200">
+                    <TableHead className="text-slate-600">Candidate</TableHead>
+                    <TableHead className="text-slate-600">ATS Score</TableHead>
+                    <TableHead className="text-slate-600">Status</TableHead>
+                    <TableHead className="text-slate-600">Date</TableHead>
+                    <TableHead className="text-slate-600">Feedback</TableHead>
+                    <TableHead className="text-slate-600">Actions</TableHead>
+                  </TableRow>
+                </TableHeader>
+
+                <TableBody>
+                  {filteredCandidates.map((candidate) => (
+                    <TableRow
+                      key={candidate.id}
+                      className="border-slate-200 hover:bg-slate-50 transition"
+                    >
+                      <TableCell className="font-medium text-slate-900">
+                        <Link
+                          href={`/dashboard/candidate/${candidate.id}`}
+                          className="text-blue-600 hover:text-blue-500 underline underline-offset-4"
+                        >
+                          {candidate.filename}
+                        </Link>
+                      </TableCell>
+
+                      <TableCell className="w-[220px]">
+                        <div className="space-y-2">
+                          <div className="text-sm font-medium text-slate-900">
+                            {candidate.match_score.toFixed(1)}%
+                          </div>
+                          <Progress value={candidate.match_score} />
+                        </div>
+                      </TableCell>
+
+                      <TableCell>
+                        {getStatusBadge(candidate.status)}
+                      </TableCell>
+
+                      <TableCell className="text-slate-700">
+                        {formatDate(candidate.created_at)}
+                      </TableCell>
+
+                      <TableCell>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => setSelectedFeedback(candidate.feedback)}
+                          className="border-slate-200 bg-white hover:bg-slate-100 text-slate-900"
+                        >
+                          View
+                        </Button>
+                      </TableCell>
+
+                      <TableCell>
+                        <div className="flex gap-2">
+                          <Button
+                            size="sm"
+                            className="bg-blue-600 hover:bg-blue-500"
+                            onClick={() =>
+                              updateStatus(candidate.id, "shortlist")
+                            }
+                          >
+                            Shortlist
+                          </Button>
+
+                          <Button
+                            size="sm"
+                            variant="destructive"
+                            onClick={() =>
+                              updateStatus(candidate.id, "reject")
+                            }
+                          >
+                            Reject
+                          </Button>
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            )}
+          </CardContent>
+        </Card>
+
+        {/* Feedback Modal */}
         <Dialog
           open={!!selectedFeedback}
-          onOpenChange={() => setSelectedFeedback("")}
+          onOpenChange={() => setSelectedFeedback(null)}
         >
-          <DialogContent className="max-w-3xl bg-zinc-950 text-white border-zinc-800">
+          <DialogContent className="max-w-3xl bg-white border-slate-200">
             <DialogHeader>
-              <DialogTitle>AI Candidate Analysis</DialogTitle>
+              <DialogTitle className="text-slate-900">
+                AI Recruiter Feedback
+              </DialogTitle>
             </DialogHeader>
 
-            <div className="max-h-[70vh] overflow-y-auto whitespace-pre-wrap text-sm text-zinc-300">
+            <div className="max-h-[70vh] overflow-y-auto whitespace-pre-wrap text-sm text-slate-700 leading-7">
               {selectedFeedback}
             </div>
           </DialogContent>
