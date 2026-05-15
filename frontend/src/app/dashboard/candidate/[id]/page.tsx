@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import axios from "axios";
 import Link from "next/link";
 import { useParams } from "next/navigation";
+import { useUser } from "@clerk/nextjs";
 import {
   ArrowLeft,
   BarChart3,
@@ -21,6 +22,7 @@ import { Badge } from "@/components/ui/badge";
 interface Candidate {
   id: number;
   filename: string;
+  email: string;
   match_score: number;
   matched_skills: string;
   missing_skills: string;
@@ -33,25 +35,41 @@ const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:8000";
 
 export default function CandidateDetailPage() {
   const params = useParams();
+  const { user } = useUser();
   const candidateId = params.id;
 
   const [candidate, setCandidate] = useState<Candidate | null>(null);
   const [loading, setLoading] = useState(true);
 
   const fetchCandidate = async () => {
+    if (!user) return;
+
     try {
-      const res = await axios.get(`${API_URL}/candidate/${candidateId}`);
-      setCandidate(res.data);
+      const res = await axios.get(
+        `${API_URL}/candidate/${candidateId}?recruiter_id=${user.id}`
+      );
+
+      if (res.data.error) {
+        setCandidate(null);
+      } else {
+        setCandidate(res.data);
+      }
     } catch (error) {
       console.error("Failed to fetch candidate:", error);
+      setCandidate(null);
     } finally {
       setLoading(false);
     }
   };
 
   const updateStatus = async (action: "shortlist" | "reject") => {
+    if (!user) return;
+
     try {
-      await axios.post(`${API_URL}/candidate/${candidateId}/${action}`);
+      await axios.post(
+        `${API_URL}/candidate/${candidateId}/${action}?recruiter_id=${user.id}`
+      );
+
       fetchCandidate();
     } catch (error) {
       console.error(`Failed to ${action} candidate:`, error);
@@ -60,7 +78,7 @@ export default function CandidateDetailPage() {
 
   useEffect(() => {
     fetchCandidate();
-  }, []);
+  }, [user]);
 
   const getStatusBadge = () => {
     if (!candidate) return null;
@@ -108,7 +126,7 @@ export default function CandidateDetailPage() {
   if (!candidate) {
     return (
       <div className="min-h-screen bg-slate-50 flex items-center justify-center text-slate-600">
-        Candidate not found.
+        Candidate not found or unauthorized.
       </div>
     );
   }
@@ -126,7 +144,6 @@ export default function CandidateDetailPage() {
   return (
     <div className="min-h-screen bg-slate-50 px-6 py-10">
       <div className="max-w-7xl mx-auto space-y-8">
-        {/* Back */}
         <Link
           href="/dashboard"
           className="inline-flex items-center gap-2 text-slate-500 hover:text-blue-600 transition font-medium"
@@ -135,7 +152,6 @@ export default function CandidateDetailPage() {
           Back to Dashboard
         </Link>
 
-        {/* Top */}
         <div className="grid gap-6 lg:grid-cols-3">
           <Card className="lg:col-span-2 bg-white border-slate-200 shadow-sm">
             <CardHeader>
@@ -150,6 +166,11 @@ export default function CandidateDetailPage() {
                 <p className="text-xl font-semibold text-slate-900">
                   {candidate.filename}
                 </p>
+              </div>
+
+              <div>
+                <p className="text-sm text-slate-500">Candidate Email</p>
+                <p className="text-slate-900">{candidate.email}</p>
               </div>
 
               <div className="flex items-center gap-3">
@@ -197,7 +218,6 @@ export default function CandidateDetailPage() {
           </Card>
         </div>
 
-        {/* Skills */}
         <div className="grid gap-6 lg:grid-cols-2">
           <Card className="bg-white border-slate-200 shadow-sm">
             <CardHeader>
@@ -240,7 +260,6 @@ export default function CandidateDetailPage() {
           </Card>
         </div>
 
-        {/* Feedback */}
         <Card className="bg-white border-slate-200 shadow-sm">
           <CardHeader>
             <CardTitle className="flex items-center gap-2 text-slate-900">
@@ -256,7 +275,6 @@ export default function CandidateDetailPage() {
           </CardContent>
         </Card>
 
-        {/* Resume Preview */}
         <Card className="bg-white border-slate-200 shadow-sm">
           <CardHeader>
             <CardTitle className="text-slate-900">

@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import axios from "axios";
+import { useUser } from "@clerk/nextjs";
 import {
   UploadCloud,
   FileText,
@@ -23,6 +24,8 @@ type AnalysisResult = {
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:8000";
 
 export default function Home() {
+  const { user } = useUser();
+
   const [resume, setResume] = useState<File | null>(null);
   const [candidateEmail, setCandidateEmail] = useState("");
   const [jobDescription, setJobDescription] = useState("");
@@ -30,6 +33,11 @@ export default function Home() {
   const [result, setResult] = useState<AnalysisResult | null>(null);
 
   const handleAnalyze = async () => {
+    if (!user) {
+      alert("Please sign in first.");
+      return;
+    }
+
     if (!resume || !jobDescription || !candidateEmail) {
       alert("Please upload resume, enter candidate email, and job description.");
       return;
@@ -39,6 +47,7 @@ export default function Home() {
     formData.append("resume", resume);
     formData.append("candidate_email", candidateEmail);
     formData.append("job_description", jobDescription);
+    formData.append("recruiter_id", user.id);
 
     try {
       setLoading(true);
@@ -64,7 +73,6 @@ export default function Home() {
   return (
     <main className="min-h-screen bg-slate-50 px-6 py-10">
       <div className="max-w-6xl mx-auto space-y-10">
-        {/* Header */}
         <div className="text-center space-y-4">
           <div className="flex justify-center">
             <Sparkles className="w-12 h-12 text-blue-600" />
@@ -79,7 +87,6 @@ export default function Home() {
           </p>
         </div>
 
-        {/* Upload Card */}
         <div className="bg-white rounded-3xl p-8 border border-slate-200 shadow-sm space-y-6">
           <div className="border-2 border-dashed border-slate-300 rounded-2xl p-10 text-center hover:border-blue-500 transition">
             <UploadCloud className="mx-auto w-14 h-14 text-blue-600 mb-4" />
@@ -111,7 +118,6 @@ export default function Home() {
             </div>
           </div>
 
-          {/* Email */}
           <div className="relative">
             <Mail className="absolute left-4 top-4 h-5 w-5 text-slate-400" />
 
@@ -124,7 +130,6 @@ export default function Home() {
             />
           </div>
 
-          {/* JD */}
           <textarea
             placeholder="Paste job description here..."
             value={jobDescription}
@@ -141,14 +146,12 @@ export default function Home() {
           </button>
         </div>
 
-        {/* Results */}
         {result && (
           <div className="bg-white rounded-3xl p-8 border border-slate-200 shadow-sm space-y-8">
             <h2 className="text-3xl font-bold text-center text-slate-900">
               Analysis Results
             </h2>
 
-            {/* Score */}
             <div className="space-y-3">
               <div className="flex justify-between">
                 <span className="font-semibold text-slate-900">
@@ -168,7 +171,6 @@ export default function Home() {
               </div>
             </div>
 
-            {/* Skills */}
             <div className="grid md:grid-cols-2 gap-8">
               <div>
                 <h3 className="text-xl font-semibold mb-4 flex items-center gap-2 text-slate-900">
@@ -207,7 +209,6 @@ export default function Home() {
               </div>
             </div>
 
-            {/* Feedback */}
             <div className="bg-slate-50 rounded-2xl p-6 border border-slate-200">
               <h3 className="text-xl font-semibold mb-3 text-slate-900">
                 AI Feedback

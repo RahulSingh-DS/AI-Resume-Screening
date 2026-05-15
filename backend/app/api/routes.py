@@ -25,6 +25,7 @@ async def analyze(
     resume: UploadFile = File(...),
     job_description: str = Form(...),
     candidate_email: str = Form(...),
+    recruiter_id: str = Form(...),
     db: Session = Depends(get_db)
 ):
     file_path = os.path.join(UPLOAD_DIR, resume.filename)
@@ -54,6 +55,7 @@ async def analyze(
     )
 
     candidate = Candidate(
+        recruiter_id=recruiter_id,
         filename=resume.filename,
         email=candidate_email,
         match_score=match_score,
@@ -70,17 +72,22 @@ async def analyze(
         "id": candidate.id,
         "filename": candidate.filename,
         "email": candidate.email,
-        "match_score": match_score,
+        "match_score": candidate.match_score,
         "matched_skills": analysis["matched_skills"],
         "missing_skills": analysis["missing_skills"],
-        "feedback": feedback,
+        "feedback": candidate.feedback,
         "status": candidate.status
     }
 
 
 @router.get("/candidates")
-def get_candidates(db: Session = Depends(get_db)):
-    candidates = db.query(Candidate).all()
+def get_candidates(
+    recruiter_id: str,
+    db: Session = Depends(get_db)
+):
+    candidates = db.query(Candidate).filter(
+        Candidate.recruiter_id == recruiter_id
+    ).all()
 
     return [
         {
@@ -99,13 +106,18 @@ def get_candidates(db: Session = Depends(get_db)):
 
 
 @router.get("/candidate/{candidate_id}")
-def get_candidate(candidate_id: int, db: Session = Depends(get_db)):
+def get_candidate(
+    candidate_id: int,
+    recruiter_id: str,
+    db: Session = Depends(get_db)
+):
     candidate = db.query(Candidate).filter(
-        Candidate.id == candidate_id
+        Candidate.id == candidate_id,
+        Candidate.recruiter_id == recruiter_id
     ).first()
 
     if not candidate:
-        return {"error": "Candidate not found"}
+        return {"error": "Candidate not found or unauthorized"}
 
     return {
         "id": candidate.id,
@@ -131,13 +143,18 @@ def get_resume(filename: str):
 
 
 @router.post("/candidate/{candidate_id}/shortlist")
-def shortlist(candidate_id: int, db: Session = Depends(get_db)):
+def shortlist(
+    candidate_id: int,
+    recruiter_id: str,
+    db: Session = Depends(get_db)
+):
     candidate = db.query(Candidate).filter(
-        Candidate.id == candidate_id
+        Candidate.id == candidate_id,
+        Candidate.recruiter_id == recruiter_id
     ).first()
 
     if not candidate:
-        return {"error": "Candidate not found"}
+        return {"error": "Candidate not found or unauthorized"}
 
     candidate.status = "shortlisted"
     db.commit()
@@ -148,13 +165,18 @@ def shortlist(candidate_id: int, db: Session = Depends(get_db)):
 
 
 @router.post("/candidate/{candidate_id}/reject")
-def reject(candidate_id: int, db: Session = Depends(get_db)):
+def reject(
+    candidate_id: int,
+    recruiter_id: str,
+    db: Session = Depends(get_db)
+):
     candidate = db.query(Candidate).filter(
-        Candidate.id == candidate_id
+        Candidate.id == candidate_id,
+        Candidate.recruiter_id == recruiter_id
     ).first()
 
     if not candidate:
-        return {"error": "Candidate not found"}
+        return {"error": "Candidate not found or unauthorized"}
 
     candidate.status = "rejected"
     db.commit()

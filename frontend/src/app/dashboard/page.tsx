@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import axios from "axios";
+import { useUser } from "@clerk/nextjs";
 import {
   Search,
   Users,
@@ -39,6 +40,7 @@ type CandidateStatus = "pending" | "shortlisted" | "rejected";
 interface Candidate {
   id: number;
   filename: string;
+  email: string;
   match_score: number;
   matched_skills: string;
   missing_skills: string;
@@ -50,6 +52,8 @@ interface Candidate {
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:8000";
 
 export default function DashboardPage() {
+  const { user } = useUser();
+
   const [candidates, setCandidates] = useState<Candidate[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedFeedback, setSelectedFeedback] = useState<string | null>(null);
@@ -57,9 +61,15 @@ export default function DashboardPage() {
   const [statusFilter, setStatusFilter] = useState("all");
 
   const fetchCandidates = async () => {
+    if (!user) return;
+
     try {
       setLoading(true);
-      const res = await axios.get(`${API_URL}/candidates`);
+
+      const res = await axios.get(
+        `${API_URL}/candidates?recruiter_id=${user.id}`
+      );
+
       setCandidates(res.data);
     } catch (error) {
       console.error("Failed to fetch candidates:", error);
@@ -70,11 +80,16 @@ export default function DashboardPage() {
 
   useEffect(() => {
     fetchCandidates();
-  }, []);
+  }, [user]);
 
   const updateStatus = async (id: number, action: "shortlist" | "reject") => {
+    if (!user) return;
+
     try {
-      await axios.post(`${API_URL}/candidate/${id}/${action}`);
+      await axios.post(
+        `${API_URL}/candidate/${id}/${action}?recruiter_id=${user.id}`
+      );
+
       fetchCandidates();
     } catch (error) {
       console.error(`Failed to ${action} candidate:`, error);
@@ -182,7 +197,6 @@ export default function DashboardPage() {
   return (
     <div className="min-h-screen bg-slate-50 px-6 py-10">
       <div className="max-w-7xl mx-auto space-y-8">
-        {/* Header */}
         <div>
           <h1 className="text-4xl font-bold tracking-tight text-slate-900">
             Recruitment Dashboard
@@ -192,7 +206,6 @@ export default function DashboardPage() {
           </p>
         </div>
 
-        {/* Stats */}
         <div className="grid gap-6 md:grid-cols-2 xl:grid-cols-5">
           {statCards.map((item) => (
             <Card
@@ -215,7 +228,6 @@ export default function DashboardPage() {
           ))}
         </div>
 
-        {/* Search + Filter */}
         <div className="flex flex-col md:flex-row gap-4 md:items-center md:justify-between">
           <div className="relative w-full md:max-w-md">
             <Search className="absolute left-3 top-3 h-4 w-4 text-slate-400" />
@@ -242,7 +254,6 @@ export default function DashboardPage() {
           </Tabs>
         </div>
 
-        {/* Table */}
         <Card className="bg-white border-slate-200 shadow-sm">
           <CardHeader>
             <CardTitle className="text-slate-900">
@@ -262,55 +273,31 @@ export default function DashboardPage() {
               </div>
             ) : (
               <Table>
-                <TableHeader>
-                  <TableRow className="border-slate-200">
-                    <TableHead className="text-slate-600">Candidate</TableHead>
-                    <TableHead className="text-slate-600">ATS Score</TableHead>
-                    <TableHead className="text-slate-600">Status</TableHead>
-                    <TableHead className="text-slate-600">Date</TableHead>
-                    <TableHead className="text-slate-600">Feedback</TableHead>
-                    <TableHead className="text-slate-600">Actions</TableHead>
-                  </TableRow>
-                </TableHeader>
-
                 <TableBody>
                   {filteredCandidates.map((candidate) => (
-                    <TableRow
-                      key={candidate.id}
-                      className="border-slate-200 hover:bg-slate-50 transition"
-                    >
-                      <TableCell className="font-medium text-slate-900">
+                    <TableRow key={candidate.id}>
+                      <TableCell>
                         <Link
                           href={`/dashboard/candidate/${candidate.id}`}
-                          className="text-blue-600 hover:text-blue-500 underline underline-offset-4"
+                          className="text-blue-600 hover:underline"
                         >
                           {candidate.filename}
                         </Link>
                       </TableCell>
 
-                      <TableCell className="w-[220px]">
-                        <div className="space-y-2">
-                          <div className="text-sm font-medium text-slate-900">
-                            {candidate.match_score.toFixed(1)}%
-                          </div>
-                          <Progress value={candidate.match_score} />
-                        </div>
-                      </TableCell>
+                      <TableCell>{candidate.match_score.toFixed(1)}%</TableCell>
 
                       <TableCell>
                         {getStatusBadge(candidate.status)}
                       </TableCell>
 
-                      <TableCell className="text-slate-700">
-                        {formatDate(candidate.created_at)}
-                      </TableCell>
+                      <TableCell>{formatDate(candidate.created_at)}</TableCell>
 
                       <TableCell>
                         <Button
                           variant="outline"
                           size="sm"
                           onClick={() => setSelectedFeedback(candidate.feedback)}
-                          className="border-slate-200 bg-white hover:bg-slate-100 text-slate-900"
                         >
                           View
                         </Button>
@@ -347,19 +334,16 @@ export default function DashboardPage() {
           </CardContent>
         </Card>
 
-        {/* Feedback Modal */}
         <Dialog
           open={!!selectedFeedback}
           onOpenChange={() => setSelectedFeedback(null)}
         >
-          <DialogContent className="max-w-3xl bg-white border-slate-200">
+          <DialogContent className="max-w-3xl bg-white">
             <DialogHeader>
-              <DialogTitle className="text-slate-900">
-                AI Recruiter Feedback
-              </DialogTitle>
+              <DialogTitle>AI Recruiter Feedback</DialogTitle>
             </DialogHeader>
 
-            <div className="max-h-[70vh] overflow-y-auto whitespace-pre-wrap text-sm text-slate-700 leading-7">
+            <div className="max-h-[70vh] overflow-y-auto whitespace-pre-wrap text-sm">
               {selectedFeedback}
             </div>
           </DialogContent>

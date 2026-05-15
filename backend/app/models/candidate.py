@@ -7,6 +7,9 @@ class Candidate(Base):
     __tablename__ = "candidates"
 
     id = Column(Integer, primary_key=True, index=True)
+
+    recruiter_id = Column(String, nullable=False)
+
     filename = Column(String, nullable=False)
     email = Column(String, nullable=False)
 
