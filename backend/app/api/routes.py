@@ -1,3 +1,7 @@
+from app.models.job import Job
+from app.models.candidate import Candidate
+from app.models.application import Application
+
 from fastapi import APIRouter, UploadFile, File, Form, Depends
 from fastapi.responses import FileResponse
 from sqlalchemy.orm import Session
@@ -184,3 +188,181 @@ def reject(
     send_rejection_email(candidate.email, candidate.filename)
 
     return {"message": "Candidate rejected and email sent"}
+
+@router.post("/jobs")
+def create_job(
+    recruiter_id: str = Form(...),
+    title: str = Form(...),
+    company: str = Form(...),
+    location: str = Form(...),
+    salary: str = Form(""),
+    description: str = Form(...),
+    required_skills: str = Form(""),
+    db: Session = Depends(get_db)
+):
+    job = Job(
+        recruiter_id=recruiter_id,
+        title=title,
+        company=company,
+        location=location,
+        salary=salary,
+        description=description,
+        required_skills=required_skills,
+    )
+
+    db.add(job)
+    db.commit()
+    db.refresh(job)
+
+    return {
+        "id": job.id,
+        "message": "Job created successfully"
+    }
+
+
+@router.get("/jobs")
+def get_public_jobs(db: Session = Depends(get_db)):
+    jobs = db.query(Job).filter(
+        Job.status == "open"
+    ).order_by(Job.created_at.desc()).all()
+
+    return [
+        {
+            "id": job.id,
+            "title": job.title,
+            "company": job.company,
+            "location": job.location,
+            "salary": job.salary,
+            "required_skills": job.required_skills,
+            "status": job.status,
+            "created_at": job.created_at
+        }
+        for job in jobs
+    ]
+
+
+@router.get("/recruiter/jobs")
+def get_recruiter_jobs(
+    recruiter_id: str,
+    db: Session = Depends(get_db)
+):
+    jobs = db.query(Job).filter(
+        Job.recruiter_id == recruiter_id
+    ).order_by(Job.created_at.desc()).all()
+
+    return [
+        {
+            "id": job.id,
+            "title": job.title,
+            "company": job.company,
+            "location": job.location,
+            "salary": job.salary,
+            "description": job.description,
+            "required_skills": job.required_skills,
+            "status": job.status,
+            "created_at": job.created_at
+        }
+        for job in jobs
+    ]
+
+
+@router.get("/jobs/{job_id}")
+def get_job_detail(
+    job_id: int,
+    db: Session = Depends(get_db)
+):
+    job = db.query(Job).filter(
+        Job.id == job_id
+    ).first()
+
+    if not job:
+        return {"error": "Job not found"}
+
+    return {
+        "id": job.id,
+        "title": job.title,
+        "company": job.company,
+        "location": job.location,
+        "salary": job.salary,
+        "description": job.description,
+        "required_skills": job.required_skills,
+        "status": job.status,
+        "created_at": job.created_at
+    }
+
+@router.post("/jobs/{job_id}/apply")
+async def apply_to_job(
+    job_id: int,
+    resume: UploadFile = File(...),
+    candidate_user_id: str = Form(...),
+    candidate_email: str = Form(...),
+    db: Session = Depends(get_db)
+):
+    job = db.query(Job).filter(
+        Job.id == job_id
+    ).first()
+
+    if not job:
+        return {"error": "Job not found"}
+
+    file_path = os.path.join(
+        UPLOAD_DIR,
+        resume.filename
+    )
+
+    with open(file_path, "wb") as buffer:
+        shutil.copyfileobj(resume.file, buffer)
+
+    if resume.filename.endswith(".pdf"):
+        resume_text = parse_pdf(file_path)
+
+    elif resume.filename.endswith(".docx"):
+        resume_text = parse_docx(file_path)
+
+    else:
+        return {"error": "Unsupported file format"}
+
+    analysis = analyze_resume(
+        resume_text,
+        job.description + " " + (job.required_skills or "")
+    )
+
+    application = Application(
+        job_id=job.id,
+        candidate_user_id=candidate_user_id,
+        candidate_email=candidate_email,
+        resume_filename=resume.filename,
+        match_score=float(analysis["match_score"]),
+    )
+
+    db.add(application)
+    db.commit()
+    db.refresh(application)
+
+    return {
+        "message": "Application submitted successfully",
+        "match_score": application.match_score,
+        "application_id": application.id,
+    }
+
+
+@router.get("/jobs/{job_id}/applications")
+def get_job_applications(
+    job_id: int,
+    db: Session = Depends(get_db)
+):
+    applications = db.query(Application).filter(
+        Application.job_id == job_id
+    ).order_by(Application.created_at.desc()).all()
+
+    return [
+        {
+            "id": app.id,
+            "candidate_email": app.candidate_email,
+            "resume_filename": app.resume_filename,
+            "match_score": app.match_score,
+            "status": app.status,
+            "created_at": app.created_at,
+        }
+        for app in applications
+    ]

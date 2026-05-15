@@ -6,12 +6,14 @@ import os
 from app.api.routes import router
 from app.core.database import Base, engine
 from app.models.candidate import Candidate
+from app.models.job import Job
+from app.models.application import Application
 
 print("Creating database tables...")
 Base.metadata.create_all(bind=engine)
 
 app = FastAPI(
-    title="Resume Screening Bot API",
+    title="AI Hiring Platform API",
     version="1.0.0"
 )
 
@@ -25,14 +27,20 @@ app.add_middleware(
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 UPLOAD_DIR = os.path.join(BASE_DIR, "..", "uploads")
-print("UPLOAD DIR:", os.path.abspath(UPLOAD_DIR))
-print("FILES:", os.listdir(os.path.abspath(UPLOAD_DIR)))
 
-app.mount("/uploads", StaticFiles(directory=UPLOAD_DIR), name="uploads")
+os.makedirs(UPLOAD_DIR, exist_ok=True)
+
+app.mount(
+    "/uploads",
+    StaticFiles(directory=UPLOAD_DIR),
+    name="uploads"
+)
 
 app.include_router(router)
 
 
 @app.get("/")
 def home():
-    return {"message": "Resume Screening Bot API Running"}
+    return {
+        "message": "AI Hiring Platform API Running"
+    }
