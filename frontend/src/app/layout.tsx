@@ -5,8 +5,8 @@ import { ClerkProvider, UserButton } from "@clerk/nextjs";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "AI Resume Screening",
-  description: "AI-powered recruitment platform",
+  title: "AI Hiring Platform",
+  description: "AI-powered hiring platform",
 };
 
 export default function RootLayout({
@@ -25,22 +25,22 @@ export default function RootLayout({
                 className="text-2xl font-bold tracking-tight flex items-center gap-2"
               >
                 <span className="text-blue-500">AI</span>
-                <span className="text-white">Resume Screening</span>
+                <span className="text-white">Hiring Platform</span>
               </Link>
 
               <nav className="flex items-center gap-6">
                 <Link
-                  href="/"
+                  href="/check-ats"
                   className="text-slate-300 hover:text-blue-400 transition font-medium"
                 >
-                  Analyze
+                  ATS Checker
                 </Link>
 
                 <Link
                   href="/dashboard"
                   className="text-slate-300 hover:text-blue-400 transition font-medium"
                 >
-                  Dashboard
+                  Recruiter Dashboard
                 </Link>
 
                 <Link
