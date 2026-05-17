@@ -1,8 +1,7 @@
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.metrics.pairwise import cosine_similarity
-from sentence_transformers import SentenceTransformer
 
-model = SentenceTransformer("all-MiniLM-L6-v2")
+model = None
 
 COMMON_SKILLS = [
     "python",
@@ -31,6 +30,16 @@ COMMON_SKILLS = [
 ]
 
 
+def get_model():
+    global model
+
+    if model is None:
+        from sentence_transformers import SentenceTransformer
+        model = SentenceTransformer("all-MiniLM-L6-v2")
+
+    return model
+
+
 def calculate_tfidf_score(resume_text, jd_text):
     docs = [resume_text, jd_text]
 
@@ -42,6 +51,8 @@ def calculate_tfidf_score(resume_text, jd_text):
 
 
 def calculate_embedding_score(resume_text, jd_text):
+    model = get_model()
+
     embeddings = model.encode([resume_text, jd_text])
 
     score = cosine_similarity([embeddings[0]], [embeddings[1]])[0][0]
