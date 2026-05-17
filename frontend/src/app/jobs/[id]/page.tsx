@@ -66,6 +66,7 @@ export default function JobDetailPage() {
         "candidate_email",
         user.primaryEmailAddress?.emailAddress || ""
       );
+      formData.append("role", "candidate");
 
       const response = await axios.post(
         `http://localhost:8000/jobs/${id}/apply`,
@@ -158,12 +159,23 @@ export default function JobDetailPage() {
             </button>
 
             {matchScore !== null && (
-              <div className="bg-green-900 border border-green-700 rounded-2xl p-6">
-                <h3 className="text-2xl font-bold">
-                  ATS Match Score: {matchScore}%
-                </h3>
-              </div>
-            )}
+  <div className="bg-green-900 border border-green-700 rounded-2xl p-6">
+    <p className="text-sm text-slate-300 mb-3">
+      ATS Match Score
+    </p>
+
+    <div className="w-full bg-slate-800 rounded-full h-4 overflow-hidden">
+      <div
+        className="bg-blue-500 h-4 rounded-full transition-all"
+        style={{ width: `${matchScore}%` }}
+      />
+    </div>
+
+    <p className="text-blue-300 mt-3 font-semibold text-lg">
+      {matchScore}%
+    </p>
+  </div>
+)}
           </div>
         </div>
       </div>

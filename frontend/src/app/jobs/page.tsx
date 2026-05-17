@@ -17,7 +17,12 @@ interface Job {
 
 export default function JobsMarketplacePage() {
   const [jobs, setJobs] = useState<Job[]>([]);
+  const [filteredJobs, setFilteredJobs] = useState<Job[]>([]);
   const [loading, setLoading] = useState(true);
+
+  const [searchTitle, setSearchTitle] = useState("");
+  const [searchCompany, setSearchCompany] = useState("");
+  const [searchLocation, setSearchLocation] = useState("");
 
   useEffect(() => {
     const fetchJobs = async () => {
@@ -26,9 +31,8 @@ export default function JobsMarketplacePage() {
           "http://localhost:8000/jobs"
         );
 
-        console.log("Jobs:", response.data);
-
         setJobs(response.data);
+        setFilteredJobs(response.data);
       } catch (error) {
         console.error("Failed to fetch jobs:", error);
       } finally {
@@ -38,6 +42,30 @@ export default function JobsMarketplacePage() {
 
     fetchJobs();
   }, []);
+
+  useEffect(() => {
+    const filtered = jobs.filter((job) => {
+      const matchesTitle = job.title
+        .toLowerCase()
+        .includes(searchTitle.toLowerCase());
+
+      const matchesCompany = job.company
+        .toLowerCase()
+        .includes(searchCompany.toLowerCase());
+
+      const matchesLocation = job.location
+        .toLowerCase()
+        .includes(searchLocation.toLowerCase());
+
+      return (
+        matchesTitle &&
+        matchesCompany &&
+        matchesLocation
+      );
+    });
+
+    setFilteredJobs(filtered);
+  }, [searchTitle, searchCompany, searchLocation, jobs]);
 
   if (loading) {
     return (
@@ -60,19 +88,46 @@ export default function JobsMarketplacePage() {
           </p>
         </div>
 
-        {jobs.length === 0 ? (
+        {/* Search Filters */}
+        <div className="grid md:grid-cols-3 gap-4 mb-10">
+          <input
+            type="text"
+            placeholder="Search by job title..."
+            value={searchTitle}
+            onChange={(e) => setSearchTitle(e.target.value)}
+            className="bg-slate-900 border border-slate-800 rounded-xl p-4 text-white"
+          />
+
+          <input
+            type="text"
+            placeholder="Filter by company..."
+            value={searchCompany}
+            onChange={(e) => setSearchCompany(e.target.value)}
+            className="bg-slate-900 border border-slate-800 rounded-xl p-4 text-white"
+          />
+
+          <input
+            type="text"
+            placeholder="Filter by location..."
+            value={searchLocation}
+            onChange={(e) => setSearchLocation(e.target.value)}
+            className="bg-slate-900 border border-slate-800 rounded-xl p-4 text-white"
+          />
+        </div>
+
+        {filteredJobs.length === 0 ? (
           <div className="bg-slate-900 border border-slate-800 rounded-2xl p-10 text-center">
             <h2 className="text-2xl font-semibold mb-4">
-              No jobs available right now
+              No matching jobs found
             </h2>
 
             <p className="text-slate-400">
-              Check back later for new opportunities.
+              Try changing your search filters.
             </p>
           </div>
         ) : (
           <div className="grid gap-6">
-            {jobs.map((job) => (
+            {filteredJobs.map((job) => (
               <div
                 key={job.id}
                 className="bg-slate-900 border border-slate-800 rounded-2xl p-6 hover:border-blue-500 transition"

@@ -32,6 +32,7 @@ export default function RecruiterJobsPage() {
           {
             params: {
               recruiter_id: user.id,
+              role: "recruiter",
             },
           }
         );

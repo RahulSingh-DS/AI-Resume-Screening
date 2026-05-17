@@ -35,13 +35,15 @@ export default function CreateJobPage() {
 
       const formData = new FormData();
 
-      formData.append("recruiter_id", user.id);
-      formData.append("title", form.title);
-      formData.append("company", form.company);
-      formData.append("location", form.location);
-      formData.append("salary", form.salary);
-      formData.append("description", form.description);
-      formData.append("required_skills", form.required_skills);
+        formData.append("recruiter_id", user.id);
+        formData.append("role", "recruiter");
+        formData.append("title", form.title);
+        formData.append("company", form.company);
+        formData.append("location", form.location);
+        formData.append("salary", form.salary);
+        formData.append("description", form.description);
+        formData.append("required_skills", form.required_skills);
+      
 
       await axios.post(
         "http://localhost:8000/jobs",

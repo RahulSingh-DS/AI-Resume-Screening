@@ -108,6 +108,40 @@ def get_candidates(
         for candidate in candidates
     ]
 
+@router.get("/candidate/applications")
+def get_candidate_applications(
+    candidate_user_id: str,
+    role: str,
+    db: Session = Depends(get_db)
+):
+    if role != "candidate":
+        return {
+            "error": "Only candidates can access applications"
+        }
+
+    applications = db.query(Application).filter(
+        Application.candidate_user_id == candidate_user_id
+    ).order_by(Application.created_at.desc()).all()
+
+    results = []
+
+    for app in applications:
+        job = db.query(Job).filter(
+            Job.id == app.job_id
+        ).first()
+
+        if job:
+            results.append({
+                "id": app.id,
+                "job_title": job.title,
+                "company": job.company,
+                "location": job.location,
+                "match_score": app.match_score,
+                "status": app.status,
+                "created_at": app.created_at,
+            })
+
+    return results
 
 @router.get("/candidate/{candidate_id}")
 def get_candidate(
@@ -192,6 +226,7 @@ def reject(
 @router.post("/jobs")
 def create_job(
     recruiter_id: str = Form(...),
+    role: str = Form(...),
     title: str = Form(...),
     company: str = Form(...),
     location: str = Form(...),
@@ -200,6 +235,11 @@ def create_job(
     required_skills: str = Form(""),
     db: Session = Depends(get_db)
 ):
+    if role != "recruiter":
+        return {
+            "error": "Only recruiters can create jobs"
+        }
+
     job = Job(
         recruiter_id=recruiter_id,
         title=title,
@@ -218,7 +258,6 @@ def create_job(
         "id": job.id,
         "message": "Job created successfully"
     }
-
 
 @router.get("/jobs")
 def get_public_jobs(db: Session = Depends(get_db)):
@@ -240,12 +279,17 @@ def get_public_jobs(db: Session = Depends(get_db)):
         for job in jobs
     ]
 
-
 @router.get("/recruiter/jobs")
 def get_recruiter_jobs(
     recruiter_id: str,
+    role: str,
     db: Session = Depends(get_db)
 ):
+    if role != "recruiter":
+        return {
+            "error": "Only recruiters can access recruiter jobs"
+        }
+
     jobs = db.query(Job).filter(
         Job.recruiter_id == recruiter_id
     ).order_by(Job.created_at.desc()).all()
@@ -264,7 +308,6 @@ def get_recruiter_jobs(
         }
         for job in jobs
     ]
-
 
 @router.get("/jobs/{job_id}")
 def get_job_detail(
@@ -296,14 +339,30 @@ async def apply_to_job(
     resume: UploadFile = File(...),
     candidate_user_id: str = Form(...),
     candidate_email: str = Form(...),
+    role: str = Form(...),
     db: Session = Depends(get_db)
 ):
+    if role != "candidate":
+        return {
+            "error": "Only candidates can apply to jobs"
+        }
+
     job = db.query(Job).filter(
         Job.id == job_id
     ).first()
 
     if not job:
         return {"error": "Job not found"}
+
+    existing_application = db.query(Application).filter(
+        Application.job_id == job_id,
+        Application.candidate_user_id == candidate_user_id
+    ).first()
+
+    if existing_application:
+        return {
+            "error": "You have already applied to this job"
+        }
 
     file_path = os.path.join(
         UPLOAD_DIR,
@@ -349,11 +408,22 @@ async def apply_to_job(
 @router.get("/jobs/{job_id}/applications")
 def get_job_applications(
     job_id: int,
+    recruiter_id: str,
     db: Session = Depends(get_db)
 ):
+    job = db.query(Job).filter(
+        Job.id == job_id
+    ).first()
+
+    if not job:
+        return {"error": "Job not found"}
+
+    if job.recruiter_id != recruiter_id:
+        return {"error": "Unauthorized access"}
+
     applications = db.query(Application).filter(
         Application.job_id == job_id
-    ).order_by(Application.created_at.desc()).all()
+    ).order_by(Application.match_score.desc()).all()
 
     return [
         {
@@ -366,3 +436,69 @@ def get_job_applications(
         }
         for app in applications
     ]
+
+@router.post("/applications/{application_id}/shortlist")
+def shortlist_application(
+    application_id: int,
+    recruiter_id: str,
+    role: str,
+    db: Session = Depends(get_db)
+):
+    if role != "recruiter":
+        return {"error": "Only recruiters can shortlist"}
+
+    application = db.query(Application).filter(
+        Application.id == application_id
+    ).first()
+
+    if not application:
+        return {"error": "Application not found"}
+
+    job = db.query(Job).filter(
+        Job.id == application.job_id
+    ).first()
+
+    if not job or job.recruiter_id != recruiter_id:
+        return {"error": "Unauthorized"}
+
+    application.status = "shortlisted"
+
+    db.commit()
+
+    return {
+        "message": "Applicant shortlisted"
+    }
+
+
+@router.post("/applications/{application_id}/reject")
+def reject_application(
+    application_id: int,
+    recruiter_id: str,
+    role: str,
+    db: Session = Depends(get_db)
+):
+    if role != "recruiter":
+        return {"error": "Only recruiters can reject"}
+
+    application = db.query(Application).filter(
+        Application.id == application_id
+    ).first()
+
+    if not application:
+        return {"error": "Application not found"}
+
+    job = db.query(Job).filter(
+        Job.id == application.job_id
+    ).first()
+
+    if not job or job.recruiter_id != recruiter_id:
+        return {"error": "Unauthorized"}
+
+    application.status = "rejected"
+
+    db.commit()
+
+    return {
+        "message": "Applicant rejected"
+    }
+

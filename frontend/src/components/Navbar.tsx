@@ -47,6 +47,10 @@ export default function Navbar() {
               >
                 Jobs
               </Link>
+              <Link
+              href="/my-applications"
+              className="text-slate-300 hover:text-blue-400 transition font-medium">Applications
+            </Link>
             </>
           )}
 
